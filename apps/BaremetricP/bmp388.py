@@ -4,6 +4,8 @@ import time
 import smbus
 import math
 
+import RPi.GPIO
+
 # define BMP388 Device I2C address
 
 I2C_ADD_BMP388_AD0_LOW = 0x76
@@ -204,17 +206,27 @@ class BMP388(object):
 if __name__ == '__main__':
 
  import time
- 
+ import RPi.GPIO as GPIO
+
+ GPIO.setmode(GPIO.BCM)                          # Using pins BCM numbers
+
+ # BCM 17 corresponds to Raspberry Pi pin 11 (on the 40 pin connector)
+ GPIO.setup(17, GPIO.OUT, initial=GPIO.HIGH)     # Determine the pin as an output
+
+ #GPIO.output(17, GPIO.HIGH)
+ #GPIO.output(17, GPIO.LOW)
+
  print("BMP388 Test Program ...\n")
- 
+
  bmp388 = BMP388()
- 
+
  while True:
   time.sleep(0.5)
   temperature,pressure,altitude = bmp388.get_temperature_and_pressure_and_altitude()
   print(' Temperature = %.1f Pressure = %.2f  Altitude =%.2f '%(temperature/100.0,pressure/100.0,altitude/100.0))
 
 
-
+ # This is required to avoid the "this channel is already is use" errors
+ GPIO.cleanup(17)
 
 

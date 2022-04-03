@@ -5,8 +5,31 @@ import smbus
 import math
 
 import RPi.GPIO
+import signal
+import sys
 
+do_stop = 0
+
+def signal_handler(sig, frame):
+ print('You pressed Ctrl+C!')
+ global do_stop
+ do_stop = 1
+
+
+#-------------------------------------------------------------------------------
+# Project defines
+#-------------------------------------------------------------------------------
+ALTITUDE_BURNOUT = 1000.0
+
+BCM_PIN_ROLL_START = 17
+#BCM_PIN_ROLL_STOP  = ????
+
+TIME_ROLL_PHASE_S      = 3
+TIME_ROLL_PHASE_STOP_S = 3
+
+#-------------------------------------------------------------------------------
 # define BMP388 Device I2C address
+#-------------------------------------------------------------------------------
 
 I2C_ADD_BMP388_AD0_LOW = 0x76
 I2C_ADD_BMP388_AD0_HIGH = 0x77
@@ -208,25 +231,52 @@ if __name__ == '__main__':
  import time
  import RPi.GPIO as GPIO
 
+ signal.signal(signal.SIGINT, signal_handler)
+
+ state = "IDLE"
+
  GPIO.setmode(GPIO.BCM)                          # Using pins BCM numbers
 
  # BCM 17 corresponds to Raspberry Pi pin 11 (on the 40 pin connector)
- GPIO.setup(17, GPIO.OUT, initial=GPIO.HIGH)     # Determine the pin as an output
+ GPIO.setup(BCM_PIN_ROLL_START, GPIO.OUT, initial=GPIO.HIGH)     # Determine the pin as an output
 
- #GPIO.output(17, GPIO.HIGH)
- #GPIO.output(17, GPIO.LOW)
 
  print("BMP388 Test Program ...\n")
 
  bmp388 = BMP388()
 
- while True:
+ while 0 == do_stop:
   time.sleep(0.5)
   temperature,pressure,altitude = bmp388.get_temperature_and_pressure_and_altitude()
   print(' Temperature = %.1f Pressure = %.2f  Altitude =%.2f '%(temperature/100.0,pressure/100.0,altitude/100.0))
 
+  time_current = time.monotonic()
+
+  if("IDLE" == state):
+   print(state)
+   if(ALTITUDE_BURNOUT < (altitude/100.0)):
+    GPIO.output(BCM_PIN_ROLL_START, GPIO.LOW)
+    time_rotate_start = time.monotonic()
+    state = "ROTATE_START"
+  elif("ROTATE_START" == state):
+   print(state)
+   if((time_current - time_rotate_start) >= TIME_ROLL_PHASE_S):
+    GPIO.output(BCM_PIN_ROLL_START, GPIO.HIGH)
+    #GPIO.output(BCM_PIN_ROLL_STOP, GPIO.LOW)
+    time_rotate_stop = time.monotonic()
+    state = "ROTATE_STOP"
+  elif("ROTATE_STOP" == state):
+   print(state)
+   if((time_current - time_rotate_stop) > TIME_ROLL_PHASE_STOP_S):
+    #GPIO.output(BCM_PIN_ROLL_STOP, GPIO.HIGH)
+    state = "END"
+  elif("END" == state):
+   print(state)
+    # do nothing
+
 
  # This is required to avoid the "this channel is already is use" errors
- GPIO.cleanup(17)
+ GPIO.cleanup(BCM_PIN_ROLL_START)
+ #GPIO.cleanup(BCM_PIN_ROLL_STOP)
 
 
